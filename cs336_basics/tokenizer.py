@@ -12,9 +12,10 @@ class Tokenizer:
         self.merges = merges
         self.merges_order = {item: i for i, item in enumerate(merges)}
         self.special_tokens = sorted(special_tokens, key=lambda x:-len(x)) if special_tokens else []
-        for token in special_tokens:
-            self.id_to_token[len(self.id_to_token)] = token
-            self.token_to_id[token] = len(self.id_to_token)
+        if special_tokens:
+            for token in special_tokens:
+                self.id_to_token[len(self.id_to_token)] = token
+                self.token_to_id[token] = len(self.id_to_token)
         
     # def from_files(cls, vocab_filepath, merges_filepath, special_tokens=None):
     #     vocab, merges = {}, []
