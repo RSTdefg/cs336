@@ -11,6 +11,7 @@ from torch import Tensor
 
 
 from cs336_basics.bpe_train import BPE_Tokenizer
+from cs336_basics.tokenizer import Tokenizer
 def run_linear(
     d_in: int,
     d_out: int,
@@ -560,7 +561,7 @@ def get_tokenizer(
     Returns:
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
-    return BPE_Tokenizer(vocab, merges, special_tokens)
+    return Tokenizer(vocab, merges, special_tokens)
 
 
 def run_train_bpe(
@@ -590,6 +591,6 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    tokenizer = get_tokenizer({}, [], special_tokens)
+    tokenizer = BPE_Tokenizer({}, [], special_tokens)
     tokenizer.train_bpe(input_path, vocab_size)
     return (tokenizer.vocab, tokenizer.merges)

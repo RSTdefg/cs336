@@ -5,7 +5,7 @@ from cs336_basics.pretokenization_example import find_chunk_boundaries
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 class BPE_Tokenizer:
-    def __init__(self, vocab, merges, special_tokens):
+    def __init__(self, vocab, merges, special_tokens: list[str]):
         self.vocab = vocab
         self.merges = merges
         self.special_tokens = special_tokens
@@ -25,8 +25,8 @@ class BPE_Tokenizer:
         self.merges = self.merge(freq_counter, vocab_size, vocab)
         self.vocab = vocab
 
-    def merge(self, freq_counter, vocab_size, vocab) -> list[tuple[bytes, bytes]]:
-        merges = []
+    def merge(self, freq_counter: collections.Counter[tuple[bytes, ...]], vocab_size, vocab) -> list[tuple[bytes, bytes]]:
+        merges: list[tuple[bytes, bytes]] = []
         vocab_i = len(vocab)
         while vocab_size > vocab_i:
             pair_count = collections.Counter()
@@ -66,7 +66,7 @@ class BPE_Tokenizer:
         return merges
     
 
-    def pre_tokenize(self, input_path, special_tokens) -> dict:
+    def pre_tokenize(self, input_path, special_tokens) -> collections.Counter[tuple[bytes, ...]]:
         counter = collections.Counter()
         pattern = "|".join(re.escape(token) for token in special_tokens)
         with open(input_path, "rb") as f:
