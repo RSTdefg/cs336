@@ -80,5 +80,5 @@ class Tokenizer:
             yield from self.encode(it)
 
     def decode(self, ids: list[int]) -> str:
-        return b"".join(self.id_to_token[id] for id in ids).decode()
+        return b"".join(self.id_to_token[id] for id in ids).decode(errors="replace")
 
