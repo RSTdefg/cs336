@@ -35,7 +35,7 @@ CS336 is intentionally implementation-heavy. Students are expected to write subs
 
 When a student asks for help:
 
-1. **Ask clarifying questions** about what they tried, what they expected, and what happened.
+1. **Read the codebase first in every session.** Inspect the relevant source files and tests to understand the student's current progress and ground explanations in their actual code. Do not ask them to paste accessible code or summarize progress that the repository already shows. Ask clarifying questions only about intent, expectations, or observations that cannot be inferred from the available files.
 2. **Reference concepts** from lecture, handouts, or documentation rather than giving direct answers.
 3. **Suggest next steps** instead of implementing them.
 4. **Review their code** and point out specific areas for improvement, likely bugs, or missing checks, through dialog rather than directly giving them the bugs or missing checks.
