@@ -76,3 +76,26 @@ class SwiGLU(nn.Module):
 
         up = x @ self.w3.T
         return (up * silu) @ self.w2.T
+
+
+class RoPE(nn.Module):
+    def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None):
+        super().__init__()
+        freqs = torch.arange(1, d_k//2+1, device=device)
+        seqs = torch.arange(0, max_seq_len, device=device).unsqueeze(1)
+        freqs = (theta ** ((2*freqs-2)/d_k)) ** -1  
+        freqs = freqs * seqs
+        self.r_cos =  torch.cos(freqs)
+        self.r_sin =  torch.sin(freqs)
+        self.register_buffer(name="cos", tensor=self.r_cos, persistent=False)
+        self.register_buffer(name="sin", tensor=self.r_sin, persistent=False)
+    
+    def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
+        q_even = x[..., 0::2]  # [q1, q3, q5, q7] (0-indexed: indices 0, 2, 4, 6)
+        q_odd = x[..., 1::2]   # [q2, q4, q6, q8] (0-indexed: indices 1, 3, 5, 7)
+
+        rotated_q = torch.stack([-q_odd, q_even], dim=-1).flatten(start_dim=-2)
+        r_cos = self.r_cos[token_positions].repeat_interleave(2, dim=-1)
+        r_sin = self.r_sin[token_positions].repeat_interleave(2, dim=-1)
+
+        return r_cos * x + r_sin * rotated_q
