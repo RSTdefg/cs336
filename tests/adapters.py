@@ -12,7 +12,7 @@ from torch import Tensor
 
 from cs336_basics.bpe_train import BPE_Tokenizer
 from cs336_basics.tokenizer import Tokenizer
-from cs336_basics.linear import Linear, Embedding, RMSNorm, SwiGLU, RoPE
+from cs336_basics.linear import *
 def run_linear(
     d_in: int,
     d_out: int,
@@ -116,7 +116,8 @@ def run_scaled_dot_product_attention(
     Returns:
         Float[Tensor, " ... queries d_v"]: Output of SDPA
     """
-    raise NotImplementedError
+
+    return scaled_dot_product_attention(Q, K, V, mask)
 
 
 def run_multihead_self_attention(

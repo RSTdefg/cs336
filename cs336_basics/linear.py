@@ -99,3 +99,21 @@ class RoPE(nn.Module):
         r_sin = self.r_sin[token_positions].repeat_interleave(2, dim=-1)
 
         return r_cos * x + r_sin * rotated_q
+
+def Softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
+    x = x - torch.amax(x, dim=dim, keepdim=True)
+    exp = torch.exp(x)
+    sm = exp * torch.sum(exp, dim=dim, keepdim=True) ** -1
+    return sm
+
+
+def scaled_dot_product_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, mask: torch.Tensor = None):
+
+    d_k = K.shape[-1]
+
+    scores: torch.Tensor = (Q @ torch.transpose(K, -1, -2)) / (d_k ** (1/2))
+    if mask is not None:
+        scores = scores.masked_fill(~mask, -float('inf'))
+
+    attn = Softmax(scores, -1) @ V
+    return attn
