@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from einops import einsum
+from einops import einsum, rearrange
 
 class Linear(nn.Module):
     def __init__(self, in_features: int, out_features: int, device=None, dtype=None):
@@ -95,8 +95,8 @@ class RoPE(nn.Module):
         q_odd = x[..., 1::2]   # [q2, q4, q6, q8] (0-indexed: indices 1, 3, 5, 7)
 
         rotated_q = torch.stack([-q_odd, q_even], dim=-1).flatten(start_dim=-2)
-        r_cos = self.r_cos[token_positions].repeat_interleave(2, dim=-1)
-        r_sin = self.r_sin[token_positions].repeat_interleave(2, dim=-1)
+        r_cos = self.cos[token_positions].repeat_interleave(2, dim=-1)
+        r_sin = self.sin[token_positions].repeat_interleave(2, dim=-1)
 
         return r_cos * x + r_sin * rotated_q
 
@@ -116,4 +116,45 @@ def scaled_dot_product_attention(Q: torch.Tensor, K: torch.Tensor, V: torch.Tens
         scores = scores.masked_fill(~mask, -float('inf'))
 
     attn = Softmax(scores, -1) @ V
-    return attn
+    return attn 
+
+class MultiHeadSelfAttention(nn.Module):
+    def __init__(self, d_model: int, num_heads: int,  max_seq_length: int, theta: int = None, device=None, positions=None):
+        if num_heads <= 0 or d_model % num_heads != 0:
+            raise ValueError
+        super().__init__()
+        self.num_heads = num_heads
+        d_k = d_model // num_heads # assignment spec
+        self.WK = nn.Parameter(torch.empty((d_model, d_model), device=device))
+        self.WQ = nn.Parameter(torch.empty((d_model, d_model), device=device))
+        self.WV = nn.Parameter(torch.empty((d_model, d_model), device=device))
+        self.WO = nn.Parameter(torch.empty((d_model, d_model), device=device))
+        self.RoPE = None
+        if theta:
+            self.RoPE = RoPE(theta, d_k, max_seq_length, device)
+        self.positions = positions
+
+        std = (2/(d_model + d_model))**(0.5)
+        for w in [self.WK, self.WQ, self.WV, self.WO]:
+            torch.nn.init.trunc_normal_(w, std=std, a=-3*std, b=3*std)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        seq_n = x.shape[-2]
+        mask = torch.tril(torch.ones((seq_n, seq_n), device=x.device, dtype=torch.bool), 0)
+        
+        K = x @ self.WK.T
+        Q = x @ self.WQ.T
+        V = x @ self.WV.T
+
+        Q = rearrange(Q, "... seq (head d_v) -> ... head seq d_v ", head = self.num_heads)
+        K = rearrange(K, "... seq (head d_v) -> ... head seq d_v ", head = self.num_heads)
+        V = rearrange(V, "... seq (head d_v) -> ... head seq d_v ", head = self.num_heads)
+        
+        if self.RoPE is not None:
+            Q = self.RoPE(Q, self.positions)
+            K = self.RoPE(K, self.positions)
+
+        attn = scaled_dot_product_attention(Q, K, V, mask)
+        attn = rearrange(attn, "... head seq d_v -> ... seq (head d_v)")
+
+        return attn @ self.WO.T

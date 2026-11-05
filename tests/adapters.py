@@ -151,7 +151,11 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    m = MultiHeadSelfAttention(d_model, num_heads, in_features.shape[-2])
+    p = {"WQ": q_proj_weight, "WK": k_proj_weight, "WV": v_proj_weight, "WO": o_proj_weight}
+    m.load_state_dict(p)
+    return m.forward(in_features)
+
 
 
 def run_multihead_self_attention_with_rope(
@@ -191,7 +195,10 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    m = MultiHeadSelfAttention(d_model, num_heads, max_seq_len, theta=theta, positions=token_positions)
+    p = {"WQ": q_proj_weight, "WK": k_proj_weight, "WV": v_proj_weight, "WO": o_proj_weight}
+    m.load_state_dict(p)
+    return m.forward(in_features)
 
 
 def run_rope(
@@ -409,6 +416,7 @@ def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
         Float[Tensor,"..."]: of with the same shape as `in_features` with the output of applying
         SiLU to each element.
     """
+
     raise NotImplementedError
 
 
@@ -448,7 +456,7 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    raise NotImplementedError
+    return Softmax(in_features, dim)
 
 
 def run_cross_entropy(
