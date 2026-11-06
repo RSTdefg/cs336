@@ -32,7 +32,7 @@ def run_linear(
         Float[Tensor, "... d_out"]: The transformed output of your linear module.
     """
     linear = Linear(d_in, d_out, None, None)
-    linear.load_state_dict({"param": weights})
+    linear.load_state_dict({"weight": weights})
     return linear.forward(in_features)
 
 def run_embedding(
@@ -54,7 +54,7 @@ def run_embedding(
         Float[Tensor, "... d_model"]: Batch of embeddings returned by your Embedding layer.
     """
     emb = Embedding(vocab_size, d_model, None, None)
-    emb.load_state_dict({"embeddings": weights})
+    emb.load_state_dict({"weight": weights})
     return emb.forward(token_ids)
 
 
@@ -89,9 +89,9 @@ def run_swiglu(
     # swiglu.w3.weight.data = w3_weight
 
     weights = {
-        "w1": w1_weight,
-        "w2": w2_weight,
-        "w3": w3_weight
+        "w1.weight": w1_weight,
+        "w2.weight": w2_weight,
+        "w3.weight": w3_weight
     }
     swiglu = SwiGLU(d_model, d_ff)
     swiglu.load_state_dict(weights)
@@ -152,7 +152,7 @@ def run_multihead_self_attention(
         implementation with the given QKV projection weights and input features.
     """
     m = MultiHeadSelfAttention(d_model, num_heads, in_features.shape[-2])
-    p = {"WQ": q_proj_weight, "WK": k_proj_weight, "WV": v_proj_weight, "WO": o_proj_weight}
+    p = {"q_proj.weight": q_proj_weight, "k_proj.weight": k_proj_weight, "v_proj.weight": v_proj_weight, "output_proj.weight": o_proj_weight}
     m.load_state_dict(p)
     return m.forward(in_features)
 
@@ -196,7 +196,7 @@ def run_multihead_self_attention_with_rope(
         implementation with the given QKV projection weights and input features.
     """
     m = MultiHeadSelfAttention(d_model, num_heads, max_seq_len, theta=theta, positions=token_positions)
-    p = {"WQ": q_proj_weight, "WK": k_proj_weight, "WV": v_proj_weight, "WO": o_proj_weight}
+    p = {"q_proj.weight": q_proj_weight, "k_proj.weight": k_proj_weight, "v_proj.weight": v_proj_weight, "output_proj.weight": o_proj_weight}
     m.load_state_dict(p)
     return m.forward(in_features)
 
@@ -295,7 +295,10 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+
+    t = Transformer(d_model, num_heads, max_seq_len, d_ff, theta)
+    t.load_state_dict(weights)
+    return t(in_features)
 
 
 def run_transformer_lm(
@@ -401,7 +404,7 @@ def run_rmsnorm(
         RMSNorm of the `in_features`.
     """
     rmsnorm = RMSNorm(d_model=d_model, eps=eps)
-    rmsnorm.load_state_dict({"g": weights})
+    rmsnorm.load_state_dict({"weight": weights})
     return rmsnorm.forward(in_features)
 
 

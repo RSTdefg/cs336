@@ -8,25 +8,25 @@ class Linear(nn.Module):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.param = nn.Parameter(torch.empty(size=(out_features, in_features), device=device, dtype=dtype))
+        self.weight = nn.Parameter(torch.empty(size=(out_features, in_features), device=device, dtype=dtype))
         std = (2/(self.in_features+self.out_features))**(0.5)
-        torch.nn.init.trunc_normal_(self.param, std=std, a=-3*std, b=3*std)
+        torch.nn.init.trunc_normal_(self.weight, std=std, a=-3*std, b=3*std)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if not x.shape or x.shape[-1] != self.in_features:
             raise ValueError
-        return einsum(x, self.param, "... d_in, d_out d_in -> ... d_out")
+        return einsum(x, self.weight, "... d_in, d_out d_in -> ... d_out")
 
 class Embedding(nn.Module):
     def __init__(self, num_embeddings: int, embedding_dim: int, device=None, dtype=None):
         super().__init__()
         self.d_model = embedding_dim
         self.vocab_size = num_embeddings
-        self.embeddings = nn.Parameter(torch.empty(size=(num_embeddings, embedding_dim), device=device, dtype=dtype))
-        torch.nn.init.trunc_normal_(self.embeddings, std=1, a=-3, b=3)
+        self.weight = nn.Parameter(torch.empty(size=(num_embeddings, embedding_dim), device=device, dtype=dtype))
+        torch.nn.init.trunc_normal_(self.weight, std=1, a=-3, b=3)
         
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
-        return self.embeddings[token_ids]
+        return self.weight[token_ids]
 
 
 class RMSNorm(nn.Module):
@@ -34,8 +34,8 @@ class RMSNorm(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.eps = eps
-        self.g = nn.Parameter(torch.empty(size=(d_model,), device=device, dtype=dtype))
-        torch.nn.init.constant_(self.g, 1)
+        self.weight = nn.Parameter(torch.empty(size=(d_model,), device=device, dtype=dtype))
+        torch.nn.init.constant_(self.weight, 1)
         pass
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -51,7 +51,7 @@ class RMSNorm(nn.Module):
         rsqrt = torch.rsqrt(mean)
 
         res = torch.multiply(x, rsqrt)
-        res = torch.multiply(res, self.g)
+        res = torch.multiply(res, self.weight)
 
         return res.to(in_dtype)
 
@@ -60,22 +60,18 @@ class SwiGLU(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.d_ff = d_ff
-        self.w1 = nn.Parameter(torch.empty(size=(d_ff, d_model), device=device, dtype=dtype))
-        self.w2 = nn.Parameter(torch.empty(size=(d_model, d_ff), device=device, dtype=dtype))
-        self.w3 = nn.Parameter(torch.empty(size=(d_ff, d_model), device=device, dtype=dtype))
-        std = (2/(self.d_model+self.d_ff))**(0.5)
-        torch.nn.init.trunc_normal_(self.w1, std=std, a=-3*std, b=3*std)
-        torch.nn.init.trunc_normal_(self.w2, std=std, a=-3*std, b=3*std)
-        torch.nn.init.trunc_normal_(self.w3, std=std, a=-3*std, b=3*std)
+        self.w1 = Linear(d_model, d_ff, device=device, dtype=dtype)
+        self.w2 = Linear(d_ff, d_model, device=device, dtype=dtype)
+        self.w3 = Linear(d_model, d_ff, device=device, dtype=dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if not x.shape or x.shape[-1] != self.d_model:
             raise ValueError
-        gate = x @ self.w1.T
+        gate = x @ self.w1.weight.T
         silu = gate * torch.sigmoid(gate)
 
-        up = x @ self.w3.T
-        return (up * silu) @ self.w2.T
+        up = x @ self.w3.weight.T
+        return (up * silu) @ self.w2.weight.T
 
 
 class RoPE(nn.Module):
@@ -125,36 +121,51 @@ class MultiHeadSelfAttention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
         d_k = d_model // num_heads # assignment spec
-        self.WK = nn.Parameter(torch.empty((d_model, d_model), device=device))
-        self.WQ = nn.Parameter(torch.empty((d_model, d_model), device=device))
-        self.WV = nn.Parameter(torch.empty((d_model, d_model), device=device))
-        self.WO = nn.Parameter(torch.empty((d_model, d_model), device=device))
+        self.k_proj = Linear(d_model, d_model, device=device)
+        self.q_proj = Linear(d_model, d_model, device=device)
+        self.v_proj = Linear(d_model, d_model, device=device)
+        self.output_proj = Linear(d_model, d_model, device=device)
         self.RoPE = None
         if theta:
             self.RoPE = RoPE(theta, d_k, max_seq_length, device)
         self.positions = positions
 
-        std = (2/(d_model + d_model))**(0.5)
-        for w in [self.WK, self.WQ, self.WV, self.WO]:
-            torch.nn.init.trunc_normal_(w, std=std, a=-3*std, b=3*std)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         seq_n = x.shape[-2]
         mask = torch.tril(torch.ones((seq_n, seq_n), device=x.device, dtype=torch.bool), 0)
         
-        K = x @ self.WK.T
-        Q = x @ self.WQ.T
-        V = x @ self.WV.T
+        K = x @ self.k_proj.weight.T
+        Q = x @ self.q_proj.weight.T
+        V = x @ self.v_proj.weight.T
 
         Q = rearrange(Q, "... seq (head d_v) -> ... head seq d_v ", head = self.num_heads)
         K = rearrange(K, "... seq (head d_v) -> ... head seq d_v ", head = self.num_heads)
         V = rearrange(V, "... seq (head d_v) -> ... head seq d_v ", head = self.num_heads)
-        
+        pos = self.positions if self.positions is not None else torch.arange(0, seq_n, device=x.device)
         if self.RoPE is not None:
-            Q = self.RoPE(Q, self.positions)
-            K = self.RoPE(K, self.positions)
+            Q = self.RoPE(Q, pos)
+            K = self.RoPE(K, pos)
 
         attn = scaled_dot_product_attention(Q, K, V, mask)
         attn = rearrange(attn, "... head seq d_v -> ... seq (head d_v)")
 
-        return attn @ self.WO.T
+        return attn @ self.output_proj.weight.T
+
+
+class Transformer(nn.Module):
+    def __init__(self, d_model: int, num_heads: int,  max_seq_length: int, d_ff, theta: int = None):
+        if num_heads <= 0 or d_model % num_heads != 0:
+            raise ValueError
+        super().__init__()
+        self.num_heads = num_heads
+        self.attn = MultiHeadSelfAttention(d_model, num_heads, max_seq_length, theta)
+        self.ffn = SwiGLU(d_model, d_ff)
+        self.ln1 = RMSNorm(d_model)
+        self.ln2 = RMSNorm(d_model)
+
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.attn(self.ln1(x))
+        x = x + self.ffn(self.ln2(x))
+        return x
