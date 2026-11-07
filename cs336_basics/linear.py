@@ -169,3 +169,23 @@ class Transformer(nn.Module):
         x = x + self.attn(self.ln1(x))
         x = x + self.ffn(self.ln2(x))
         return x
+
+
+class TransformerLM(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, vocab_size: int, context_length: int, num_layers: int, theta: int = None):
+        super().__init__()
+        self.layers = nn.ModuleList()
+        for _ in range(num_layers):
+            self.layers.append(Transformer(d_model, num_heads, context_length, d_ff, theta))
+        self.ln_final = RMSNorm(d_model)
+        self.token_embeddings = Embedding(vocab_size, d_model)
+        self.lm_head = Linear(d_model, vocab_size)
+
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.token_embeddings(x)
+        for emb in self.layers:
+            x = emb(x)
+        x = self.ln_final(x)
+        x = self.lm_head(x)
+        return x
