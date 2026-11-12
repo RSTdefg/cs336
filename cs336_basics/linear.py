@@ -189,3 +189,9 @@ class TransformerLM(nn.Module):
         x = self.ln_final(x)
         x = self.lm_head(x)
         return x
+    
+def CrossEntropy(predicted: torch.Tensor, targets: torch.Tensor):
+    predicted = predicted - torch.amax(predicted, dim=-1, keepdim=True)
+    dim = torch.sum(torch.exp(predicted), dim=-1, keepdim=True)
+    score = torch.log(dim) - torch.gather(predicted, dim=-1, index=targets.unsqueeze(-1))
+    return torch.mean(score)
